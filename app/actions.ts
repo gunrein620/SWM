@@ -16,7 +16,8 @@ export async function createTicketAction(
       date: String(formData.get("date") ?? ""),
       startTime: String(formData.get("startTime") ?? ""),
       endTime: String(formData.get("endTime") ?? ""),
-      creator: String(formData.get("creator") ?? "")
+      creator: String(formData.get("creator") ?? ""),
+      creatorUserId: String(formData.get("creatorUserId") ?? "")
     });
 
     revalidatePath("/");
@@ -33,6 +34,7 @@ export async function createTicketAction(
 export async function toggleParticipationAction(input: {
   date: string;
   ticketId: string;
+  userId: string;
   nickname: string;
 }): Promise<ActionState<Ticket>> {
   try {

@@ -3,18 +3,18 @@
 @tailwind utilities;
 
 :root {
-  --background: 34 56% 97%;
-  --foreground: 20 18% 16%;
-  --card: 0 0% 100%;
-  --card-foreground: 20 18% 16%;
-  --primary: 16 88% 49%;
-  --primary-foreground: 30 100% 98%;
-  --secondary: 43 80% 91%;
-  --secondary-foreground: 20 18% 16%;
-  --muted: 35 44% 92%;
-  --muted-foreground: 18 12% 40%;
-  --border: 28 30% 82%;
-  --ring: 16 88% 49%;
+  --background: 0 0% 4%;
+  --foreground: 0 0% 93%;
+  --card: 0 0% 8%;
+  --card-foreground: 0 0% 93%;
+  --primary: 143 56% 60%;
+  --primary-foreground: 0 0% 6%;
+  --secondary: 145 36% 48%;
+  --secondary-foreground: 0 0% 93%;
+  --muted: 0 0% 12%;
+  --muted-foreground: 0 0% 55%;
+  --border: 145 20% 16%;
+  --ring: 143 56% 60%;
 }
 
 * {
@@ -24,9 +24,8 @@
 body {
   @apply bg-background text-foreground antialiased;
   background-image:
-    radial-gradient(circle at top left, rgba(255, 133, 51, 0.22), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(244, 196, 48, 0.2), transparent 30%),
-    linear-gradient(180deg, rgba(255, 249, 242, 0.98), rgba(249, 241, 228, 0.98));
+    radial-gradient(circle at top left, rgba(97, 211, 140, 0.07), transparent 35%),
+    radial-gradient(circle at bottom right, rgba(79, 166, 115, 0.05), transparent 35%);
   min-height: 100vh;
 }
 

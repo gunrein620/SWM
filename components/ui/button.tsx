@@ -11,7 +11,7 @@ const variantClasses: Record<NonNullable<ButtonProps["variant"]>, string> = {
   default:
     "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
   secondary:
-    "bg-secondary text-secondary-foreground hover:bg-secondary/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    "bg-muted text-primary border border-border hover:bg-muted/70 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
   ghost:
     "bg-transparent text-foreground hover:bg-secondary/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 };

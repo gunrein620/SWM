@@ -2,8 +2,8 @@
 
 import { kv } from "@vercel/kv";
 import { randomUUID } from "crypto";
-import { isValidDateKey } from "@/lib/calendar";
-import type { Ticket } from "@/lib/types";
+import { getDateKey, isValidDateKey } from "@/lib/calendar";
+import type { Participant, Ticket } from "@/lib/types";
 
 const TICKETS_KEY_PREFIX = "tickets";
 const hasKvEnv =
@@ -17,13 +17,67 @@ function normalizeNickname(value: string) {
   return value.trim();
 }
 
+function normalizeUserId(value: string) {
+  return value.trim();
+}
+
+function normalizeParticipants(rawParticipants: unknown): Participant[] {
+  if (!Array.isArray(rawParticipants)) {
+    return [];
+  }
+
+  return rawParticipants.flatMap((participant, index) => {
+    if (typeof participant === "string") {
+      const nickname = normalizeNickname(participant);
+
+      if (!nickname) {
+        return [];
+      }
+
+      return [
+        {
+          userId: `legacy:${nickname}:${index}`,
+          nickname
+        }
+      ];
+    }
+
+    if (
+      participant &&
+      typeof participant === "object" &&
+      "userId" in participant &&
+      "nickname" in participant
+    ) {
+      const userId = normalizeUserId(String(participant.userId));
+      const nickname = normalizeNickname(String(participant.nickname));
+
+      if (!userId || !nickname) {
+        return [];
+      }
+
+      return [{ userId, nickname }];
+    }
+
+    return [];
+  });
+}
+
+function normalizeTicket(rawTicket: Ticket): Ticket {
+  return {
+    ...rawTicket,
+    participants: normalizeParticipants(rawTicket.participants)
+  };
+}
+
 function validateTicketInput(input: {
   date: string;
   startTime: string;
   endTime: string;
   creator: string;
+  creatorUserId: string;
 }) {
   const creator = normalizeNickname(input.creator);
+  const creatorUserId = normalizeUserId(input.creatorUserId);
 
   if (!isValidDateKey(input.date)) {
     throw new Error("날짜 형식이 올바르지 않습니다.");
@@ -31,6 +85,10 @@ function validateTicketInput(input: {
 
   if (!creator) {
     throw new Error("닉네임을 입력해주세요.");
+  }
+
+  if (!creatorUserId) {
+    throw new Error("사용자 정보가 없습니다. 브라우저를 새로고침해주세요.");
   }
 
   if (!input.startTime || !input.endTime) {
@@ -43,7 +101,8 @@ function validateTicketInput(input: {
 
   return {
     ...input,
-    creator
+    creator,
+    creatorUserId
   };
 }
 
@@ -52,8 +111,14 @@ export async function getTicketsByDate(date: string) {
     return [];
   }
 
-  const tickets = await kv.get<Ticket[]>(getTicketsKey(date));
-  return (tickets ?? []).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  try {
+    const tickets = await kv.get<Ticket[]>(getTicketsKey(date));
+    return (tickets ?? [])
+      .map(normalizeTicket)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  } catch {
+    return [];
+  }
 }
 
 export async function createTicket(input: {
@@ -61,6 +126,7 @@ export async function createTicket(input: {
   startTime: string;
   endTime: string;
   creator: string;
+  creatorUserId: string;
 }) {
   if (!hasKvEnv) {
     throw new Error("Vercel KV 환경변수가 설정되지 않았습니다.");
@@ -75,14 +141,23 @@ export async function createTicket(input: {
     startTime: validated.startTime,
     endTime: validated.endTime,
     creator: validated.creator,
-    participants: [validated.creator]
+    participants: [
+      {
+        userId: validated.creatorUserId,
+        nickname: validated.creator
+      }
+    ]
   };
 
   const updatedTickets = [...tickets, ticket].sort((a, b) =>
     a.startTime.localeCompare(b.startTime)
   );
 
-  await kv.set(getTicketsKey(validated.date), updatedTickets);
+  try {
+    await kv.set(getTicketsKey(validated.date), updatedTickets);
+  } catch {
+    throw new Error("저장소에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
+  }
 
   return ticket;
 }
@@ -90,6 +165,7 @@ export async function createTicket(input: {
 export async function toggleTicketParticipation(input: {
   date: string;
   ticketId: string;
+  userId: string;
   nickname: string;
 }) {
   if (!hasKvEnv) {
@@ -97,6 +173,7 @@ export async function toggleTicketParticipation(input: {
   }
 
   const nickname = normalizeNickname(input.nickname);
+  const userId = normalizeUserId(input.userId);
 
   if (!isValidDateKey(input.date)) {
     throw new Error("날짜 형식이 올바르지 않습니다.");
@@ -104,6 +181,10 @@ export async function toggleTicketParticipation(input: {
 
   if (!nickname) {
     throw new Error("닉네임을 입력해주세요.");
+  }
+
+  if (!userId) {
+    throw new Error("사용자 정보가 없습니다. 브라우저를 새로고침해주세요.");
   }
 
   const tickets = await getTicketsByDate(input.date);
@@ -114,20 +195,60 @@ export async function toggleTicketParticipation(input: {
   }
 
   const ticket = tickets[ticketIndex];
-  const hasJoined = ticket.participants.includes(nickname);
+  const hasJoined = ticket.participants.some(
+    (participant) => participant.userId === userId
+  );
 
   const updatedTicket: Ticket = {
     ...ticket,
     participants: hasJoined
-      ? ticket.participants.filter((participant) => participant !== nickname)
-      : [...ticket.participants, nickname]
+      ? ticket.participants.filter((participant) => participant.userId !== userId)
+      : [...ticket.participants, { userId, nickname }]
   };
 
   const updatedTickets = tickets.map((currentTicket) =>
     currentTicket.id === input.ticketId ? updatedTicket : currentTicket
   );
 
-  await kv.set(getTicketsKey(input.date), updatedTickets);
+  try {
+    await kv.set(getTicketsKey(input.date), updatedTickets);
+  } catch {
+    throw new Error("저장소에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
+  }
 
   return updatedTicket;
+}
+
+export async function cleanupPastTicketKeys(todayDate = getDateKey(new Date())) {
+  if (!hasKvEnv) {
+    return { deletedKeys: 0, deletedDates: [] as string[] };
+  }
+
+  let keys: string[];
+
+  try {
+    keys = await kv.keys(`${TICKETS_KEY_PREFIX}:*`);
+  } catch {
+    return { deletedKeys: 0, deletedDates: [] as string[] };
+  }
+
+  const expiredKeys = keys.filter((key) => {
+    const date = key.slice(`${TICKETS_KEY_PREFIX}:`.length);
+    return isValidDateKey(date) && date < todayDate;
+  });
+
+  if (expiredKeys.length === 0) {
+    return { deletedKeys: 0, deletedDates: [] as string[] };
+  }
+
+  try {
+    await kv.del(...expiredKeys);
+  } catch {
+    return { deletedKeys: 0, deletedDates: [] as string[] };
+  }
+
+  return {
+    deletedKeys: expiredKeys.length,
+    deletedDates: expiredKeys.map((key) => key.slice(`${TICKETS_KEY_PREFIX}:`.length))
+  };
 }

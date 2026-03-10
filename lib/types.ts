@@ -1,10 +1,15 @@
+export type Participant = {
+  userId: string;
+  nickname: string;
+};
+
 export type Ticket = {
   id: string;
   date: string;
   startTime: string;
   endTime: string;
   creator: string;
-  participants: string[];
+  participants: Participant[];
 };
 
 export type ActionState<T> =
